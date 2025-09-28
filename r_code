@@ -1,0 +1,132 @@
+# ============================
+# Credit Risk Assessment in R
+# Using Decision Tree & Random Forest
+# ============================
+
+# Install required packages if not already installed
+packages <- c("readr", "dplyr", "caret", "rpart", "rpart.plot", "randomForest", "pROC", "MLmetrics", "ggplot2")
+installed <- rownames(installed.packages())
+for (p in packages) {
+  if (!(p %in% installed)) install.packages(p, dependencies = TRUE)
+}
+
+# Load libraries
+library(readr)
+library(dplyr)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(pROC)
+library(MLmetrics)
+library(ggplot2)
+
+# ============================
+# 1. Load dataset
+# ============================
+# Use your actual file path
+data <- read_csv("C:/Users/DELL/OneDrive/Documents/loan_data.csv")
+
+# Inspect structure
+glimpse(data)
+
+# ============================
+# 2. Preprocess
+# ============================
+# Convert categorical variables to factors
+data$person_gender <- as.factor(data$person_gender)
+data$person_education <- as.factor(data$person_education)
+data$person_home_ownership <- as.factor(data$person_home_ownership)
+data$loan_intent <- as.factor(data$loan_intent)
+data$previous_loan_defaults_on_file <- as.factor(data$previous_loan_defaults_on_file)
+
+# Target variable (loan_status: 1 = good, 0 = bad)
+data$loan_status <- as.factor(data$loan_status)
+
+# ============================
+# 3. Visualization
+# ============================
+
+# Loan Status Distribution
+ggplot(data, aes(x = loan_status, fill = loan_status)) +
+  geom_bar() +
+  labs(title = "Loan Status Distribution", x = "Loan Status", y = "Count") +
+  scale_fill_manual(values = c("red", "green")) +
+  theme_minimal()
+
+# Income Distribution by Loan Status
+ggplot(data, aes(x = loan_status, y = person_income, fill = loan_status)) +
+  geom_boxplot(outlier.alpha = 0.3) +
+  labs(title = "Income Distribution by Loan Status", 
+       x = "Loan Status", y = "Annual Income") +
+  scale_fill_manual(values = c("red", "green")) +
+  theme_minimal()
+
+# ============================
+# 4. Train-test split
+# ============================
+set.seed(123)
+trainIndex <- createDataPartition(data$loan_status, p = 0.7, list = FALSE)
+train <- data[trainIndex, ]
+test  <- data[-trainIndex, ]
+
+# ============================
+# 5. Decision Tree
+# ============================
+tree_model <- rpart(loan_status ~ ., data = train, method = "class")
+
+# Plot tree
+rpart.plot(tree_model, main = "Decision Tree for Credit Risk")
+
+# Predictions
+preds_tree <- predict(tree_model, test, type = "class")
+
+# Confusion matrix
+cat("\n--- Decision Tree Performance ---\n")
+print(confusionMatrix(preds_tree, test$loan_status))
+
+# ROC / AUC
+probs_tree <- predict(tree_model, test, type = "prob")[,2]
+roc_tree <- roc(as.numeric(test$loan_status), as.numeric(probs_tree))
+cat("Decision Tree AUC:", auc(roc_tree), "\n")
+
+# Precision, Recall, F1
+precision_tree <- Precision(as.numeric(test$loan_status), as.numeric(preds_tree))
+recall_tree <- Recall(as.numeric(test$loan_status), as.numeric(preds_tree))
+f1_tree <- F1_Score(as.numeric(test$loan_status), as.numeric(preds_tree))
+
+cat("Decision Tree Precision:", precision_tree, "\n")
+cat("Decision Tree Recall:", recall_tree, "\n")
+cat("Decision Tree F1 Score:", f1_tree, "\n")
+
+# ============================
+# 6. Random Forest
+# ============================
+set.seed(123)
+rf_model <- randomForest(loan_status ~ ., data = train, ntree = 500, mtry = 4, importance = TRUE)
+
+# Predictions
+preds_rf <- predict(rf_model, test)
+
+# Confusion matrix
+cat("\n--- Random Forest Performance ---\n")
+print(confusionMatrix(preds_rf, test$loan_status))
+
+# ROC / AUC
+probs_rf <- predict(rf_model, test, type = "prob")[,2]
+roc_rf <- roc(as.numeric(test$loan_status), as.numeric(probs_rf))
+cat("Random Forest AUC:", auc(roc_rf), "\n")
+
+# Precision, Recall, F1
+precision_rf <- Precision(as.numeric(test$loan_status), as.numeric(preds_rf))
+recall_rf <- Recall(as.numeric(test$loan_status), as.numeric(preds_rf))
+f1_rf <- F1_Score(as.numeric(test$loan_status), as.numeric(preds_rf))
+
+cat("Random Forest Precision:", precision_rf, "\n")
+cat("Random Forest Recall:", recall_rf, "\n")
+cat("Random Forest F1 Score:", f1_rf, "\n")
+
+# Variable importance
+cat("\n--- Random Forest Feature Importance ---\n")
+print(importance(rf_model))
+varImpPlot(rf_model)
